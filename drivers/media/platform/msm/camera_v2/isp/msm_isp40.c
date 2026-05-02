@@ -1366,16 +1366,25 @@ static void msm_vfe40_cfg_camif(struct vfe_device *vfe_dev,
 		&pix_cfg->camif_cfg.subsample_cfg;
 	uint16_t bus_sub_en = 0;
 
+	uint16_t fixed_width, fixed_height;
+
 	vfe_dev->dual_vfe_enable = camif_cfg->is_split;
 
 	msm_camera_io_w(pix_cfg->input_mux << 16 | pix_cfg->pixel_pattern,
 			vfe_dev->vfe_base + 0x1C);
 
-	first_pixel = camif_cfg->first_pixel;
-	last_pixel = camif_cfg->last_pixel;
-	first_line = camif_cfg->first_line;
-	last_line = camif_cfg->last_line;
-	epoch_line1 = camif_cfg->epoch_line1;
+	fixed_width = camif_cfg->pixels_per_line;
+	fixed_height = camif_cfg->lines_per_frame;
+
+	if (fixed_height % 2 == 0)
+		fixed_height = fixed_height / 2;
+
+	first_pixel = 0;
+	last_pixel = fixed_width - 1;
+	first_line = 0;
+	last_line = fixed_height - 1;
+
+	epoch_line1 = last_line - 50;
 
 	if ((epoch_line1 <= 0) || (epoch_line1 > last_line))
 		epoch_line1 = last_line - 50;
@@ -1386,35 +1395,34 @@ static void msm_vfe40_cfg_camif(struct vfe_device *vfe_dev,
 	subsample_period = camif_cfg->subsample_cfg.irq_subsample_period;
 	subsample_pattern = camif_cfg->subsample_cfg.irq_subsample_pattern;
 
-	msm_camera_io_w(camif_cfg->lines_per_frame << 16 |
-		camif_cfg->pixels_per_line, vfe_dev->vfe_base + 0x300);
+	msm_camera_io_w(fixed_height << 16 |
+		fixed_width, vfe_dev->vfe_base + 0x300);
 
 	msm_camera_io_w(first_pixel << 16 | last_pixel,
-	vfe_dev->vfe_base + 0x304);
+		vfe_dev->vfe_base + 0x304);
 
 	msm_camera_io_w(first_line << 16 | last_line,
-	vfe_dev->vfe_base + 0x308);
+		vfe_dev->vfe_base + 0x308);
 
-	/* configure EPOCH0: 20 lines, and
-	 * configure EPOCH1: epoch_line1 before EOF
-	 */
+	/* configure EPOCH */
 	msm_camera_io_w_mb(0x140000 | epoch_line1,
 		vfe_dev->vfe_base + 0x318);
-	pr_debug("%s:%d: epoch_line1: %d\n",
-		__func__, __LINE__, epoch_line1);
+
+	pr_err("CAMIF FIX: width=%d height=%d\n",
+		fixed_width, fixed_height);
+
 	if (subsample_period && subsample_pattern) {
 		val = msm_camera_io_r(vfe_dev->vfe_base + 0x2F8);
 		val &= 0xFFE0FFFF;
-		val = (subsample_period - 1) << 16;
+		val |= (subsample_period - 1) << 16;
 		msm_camera_io_w(val, vfe_dev->vfe_base + 0x2F8);
-		ISP_DBG("%s:camif PERIOD %x PATTERN %x\n",
-			__func__,  subsample_period, subsample_pattern);
 
 		val = subsample_pattern;
 		msm_camera_io_w(val, vfe_dev->vfe_base + 0x314);
 	} else {
 		msm_camera_io_w(0xFFFFFFFF, vfe_dev->vfe_base + 0x314);
 	}
+
 	val = msm_camera_io_r(vfe_dev->vfe_base + 0x2E8);
 	val |= camif_cfg->camif_input;
 	msm_camera_io_w(val, vfe_dev->vfe_base + 0x2E8);
@@ -1423,36 +1431,38 @@ static void msm_vfe40_cfg_camif(struct vfe_device *vfe_dev,
 		bus_sub_en = 1;
 		val = msm_camera_io_r(vfe_dev->vfe_base + 0x2F8);
 		val &= 0xFFFFFFDF;
-		val = val | bus_sub_en << 5;
+		val |= bus_sub_en << 5;
 		msm_camera_io_w(val, vfe_dev->vfe_base + 0x2F8);
+
 		subsample_cfg->pixel_skip &= 0x0000FFFF;
 		subsample_cfg->line_skip  &= 0x0000FFFF;
+
 		msm_camera_io_w((subsample_cfg->line_skip << 16) |
 			subsample_cfg->pixel_skip,
 			vfe_dev->vfe_base + 0x30C);
+
 		if (subsample_cfg->first_pixel ||
 			subsample_cfg->last_pixel ||
 			subsample_cfg->first_line ||
 			subsample_cfg->last_line) {
+
 			msm_camera_io_w(
-			subsample_cfg->first_pixel << 16 |
+				subsample_cfg->first_pixel << 16 |
 				subsample_cfg->last_pixel,
 				vfe_dev->vfe_base + 0x8A4);
+
 			msm_camera_io_w(
-			subsample_cfg->first_line << 16 |
+				subsample_cfg->first_line << 16 |
 				subsample_cfg->last_line,
 				vfe_dev->vfe_base + 0x8A8);
-			val = msm_camera_io_r(
-				vfe_dev->vfe_base + 0x2F8);
+
+			val = msm_camera_io_r(vfe_dev->vfe_base + 0x2F8);
 			val |= 1 << 22;
-			msm_camera_io_w(val,
-				vfe_dev->vfe_base + 0x2F8);
+			msm_camera_io_w(val, vfe_dev->vfe_base + 0x2F8);
 		}
 
-		ISP_DBG("%s:camif raw op fmt %d\n",
-			__func__, subsample_cfg->output_format);
-		/* Pdaf output will be sent in PLAIN16 format*/
 		val = msm_camera_io_r(vfe_dev->vfe_base + 0x54);
+
 		switch (subsample_cfg->output_format) {
 		case CAMIF_PLAIN_8:
 			val |= 4 << 9;
@@ -1463,10 +1473,10 @@ static void msm_vfe40_cfg_camif(struct vfe_device *vfe_dev,
 		case CAMIF_MIPI_RAW:
 			val |= 1 << 9;
 			break;
-		case CAMIF_QCOM_RAW:
 		default:
 			break;
 		}
+
 		msm_camera_io_w(val, vfe_dev->vfe_base + 0x54);
 	}
 }
