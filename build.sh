@@ -26,7 +26,7 @@ if [ "$SKIP_SETUP" -eq 0 ]; then
   # ===== 📦 Install Dependencies =====
   echo "==> Installing dependencies"
   sudo apt update -y
-  sudo apt install -y bc cpio flex bison aptitude git python-is-python3 tar aria2 perl wget curl lz4 libssl-dev
+  sudo apt install -y bc cpio flex bison aptitude git python-is-python3 tar aria2 perl wget curl lz4 libssl-dev ccache
 
   # ===== 🔧 Clone Toolchains =====
   echo "==> Cloning toolchains"
@@ -63,6 +63,9 @@ else
   echo "==> The setup step is skipped. Ensure that the 'clang/', 'gcc64/', 'gcc32/', and 'KernelSU-Next/' folders are complete from the previous build."
 fi
 
+# ===== ⚡ Speed Optimizations =====
+export XZ_OPT="-T0"
+
 # ===== ⚙️ Setup Environment =====
 echo "==> Setting up environment variables"
 export BUILD_TIME="$(TZ=Asia/Jakarta date '+%d%m%Y-%H%M')"
@@ -73,6 +76,40 @@ export GCC32_PATH="$KERNEL_DIR/gcc32"
 # ===== 📅 Set BUILD DATE =====
 export BUILD_DATE="\"$(TZ=Asia/Delhi date '+%b %d %Y')\""
 
+# ===== 🤖 KernelSU Selection =====
+BUILD_KSU=0
+if [ -n "$KSU" ]; then
+  if [ "$KSU" = "1" ] || [ "$KSU" = "y" ] || [ "$KSU" = "yes" ]; then
+    BUILD_KSU=1
+  else
+    BUILD_KSU=0
+  fi
+elif [ -t 0 ]; then
+  echo ""
+  echo "========================================"
+  echo "  Do you want to build with KernelSU?"
+  echo "========================================"
+  read -r -p "[y/N]: " ksu_choice || true
+  case "$ksu_choice" in
+    [yY]|[yY][eE][sS])
+      BUILD_KSU=1
+      ;;
+    *)
+      BUILD_KSU=0
+      ;;
+  esac
+else
+  BUILD_KSU=0
+fi
+
+if [ "$BUILD_KSU" -eq 1 ]; then
+  echo "==> KernelSU: ENABLED"
+  KSU_TAG="-KSU"
+else
+  echo "==> KernelSU: DISABLED"
+  KSU_TAG=""
+fi
+
 # ===== 🛠️ Build Kernel =====
 echo "==> Building kernel"
 export ARCH=arm64
@@ -82,6 +119,14 @@ export KBUILD_BUILD_HOST=MiniBox
 export KBUILD_COMPILER_STRING="$CLANG_PATH/clang"
 export CFLAGS_EXTRA="-DBUILD_DATE=$BUILD_DATE"
 
+# Use ccache if available for faster rebuilds
+if command -v ccache &>/dev/null; then
+  echo "==> ccache detected, enabling compiler cache"
+  CC_CMD="ccache clang"
+else
+  CC_CMD="clang"
+fi
+
 # defconfig hanya perlu dijalankan sekali (saat out/ belum ada).
 # Kalau out/ sudah ada, make akan otomatis melakukan incremental build
 # berdasarkan .config yang sudah tersimpan di dalamnya.
@@ -89,7 +134,18 @@ if [ "$SKIP_SETUP" -eq 0 ]; then
   make O=out ARCH=arm64 vendor/msm8953-perf_defconfig vendor/akari.config
 fi
 
-make -j"$(nproc --all)" O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang \
+# Toggle KernelSU based on user choice
+if [ "$BUILD_KSU" -eq 1 ]; then
+  ./scripts/config --file out/.config --enable CONFIG_KSU
+  ./scripts/config --file out/.config --enable CONFIG_KSU_FEATURE_SULOG
+  ./scripts/config --file out/.config --enable CONFIG_KSU_FEATURE_ADBROOT
+  ./scripts/config --file out/.config --enable CONFIG_KSU_LSM_SECURITY_HOOKS
+else
+  ./scripts/config --file out/.config --disable CONFIG_KSU
+fi
+make O=out ARCH=arm64 CC="$CC_CMD" LLVM=1 LLVM_IAS=1 olddefconfig
+
+make -j"$(nproc --all)" O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CC="$CC_CMD" \
   CLANG_TRIPLE="$CLANG_PATH/aarch64-linux-gnu-" \
   CROSS_COMPILE="$GCC64_PATH/bin/aarch64-elf-" \
   CROSS_COMPILE_ARM32="$GCC32_PATH/bin/arm-eabi-"
@@ -105,7 +161,7 @@ cp out/arch/arm64/boot/Image.gz-dtb AnyKernel/
 
 # ===== Zip kernel =====
 cd AnyKernel
-ZIP_NAME="HYPERKERNEL${GIT_REF_NAME}-${BUILD_TIME}.zip"
+ZIP_NAME="HYPERKERNEL${GIT_REF_NAME}${KSU_TAG}-${BUILD_TIME}.zip"
 zip -r "../${ZIP_NAME}" *
 cd "$KERNEL_DIR"
 
