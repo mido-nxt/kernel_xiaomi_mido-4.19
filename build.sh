@@ -131,19 +131,20 @@ fi
 # Kalau out/ sudah ada, make akan otomatis melakukan incremental build
 # berdasarkan .config yang sudah tersimpan di dalamnya.
 if [ "$SKIP_SETUP" -eq 0 ]; then
-  make O=out ARCH=arm64 vendor/msm8953-perf_defconfig vendor/akari.config
-fi
-
-# Toggle KernelSU based on user choice
-if [ "$BUILD_KSU" -eq 1 ]; then
-  ./scripts/config --file out/.config --enable CONFIG_KSU
-  ./scripts/config --file out/.config --enable CONFIG_KSU_FEATURE_SULOG
-  ./scripts/config --file out/.config --enable CONFIG_KSU_FEATURE_ADBROOT
-  ./scripts/config --file out/.config --enable CONFIG_KSU_LSM_SECURITY_HOOKS
+  if [ "$BUILD_KSU" -eq 1 ]; then
+    make O=out ARCH=arm64 CC="$CC_CMD" LLVM=1 LLVM_IAS=1 vendor/msm8953-perf_defconfig vendor/akari.config vendor/ksu.config
+  else
+    make O=out ARCH=arm64 CC="$CC_CMD" LLVM=1 LLVM_IAS=1 vendor/msm8953-perf_defconfig vendor/akari.config
+  fi
 else
-  ./scripts/config --file out/.config --disable CONFIG_KSU
+  # Incremental build: toggle KernelSU based on user choice
+  if [ "$BUILD_KSU" -eq 1 ]; then
+    make O=out ARCH=arm64 CC="$CC_CMD" LLVM=1 LLVM_IAS=1 vendor/ksu.config
+  else
+    ./scripts/config --file out/.config --disable CONFIG_KSU
+    make O=out ARCH=arm64 CC="$CC_CMD" LLVM=1 LLVM_IAS=1 olddefconfig
+  fi
 fi
-make O=out ARCH=arm64 CC="$CC_CMD" LLVM=1 LLVM_IAS=1 olddefconfig
 
 make -j"$(nproc --all)" O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CC="$CC_CMD" \
   CLANG_TRIPLE="$CLANG_PATH/aarch64-linux-gnu-" \
