@@ -60,7 +60,7 @@ if [ "$SKIP_SETUP" -eq 0 ]; then
   #   curl -LSs "https://raw.githubusercontent.com/Ghnkz/KernelSU-Next/stable/kernel/setup.sh" | bash -s syscall
   # fi
 else
-  echo "==> The setup step is skipped. Ensure that the `clang/`, `gcc64/`, `gcc32/`, and `KernelSU-Next/` folders are complete from the previous build."
+  echo "==> The setup step is skipped. Ensure that the 'clang/', 'gcc64/', 'gcc32/', and 'KernelSU-Next/' folders are complete from the previous build."
 fi
 
 # ===== ⚙️ Setup Environment =====
