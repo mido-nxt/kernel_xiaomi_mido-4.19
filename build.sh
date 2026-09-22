@@ -53,14 +53,8 @@ if [ "$SKIP_SETUP" -eq 0 ]; then
     git clone https://github.com/greenforce-project/gcc-arm -b main --depth=1 gcc32
   fi
 
-  # ===== KERNELSU-NEXT SETUP =====
-  # if [ -d "${KERNEL_DIR}/KernelSU-Next" ]; then
-  #   echo "KernelSU-Next folder already exists, skipping setup..."
-  # else
-  #   curl -LSs "https://raw.githubusercontent.com/Ghnkz/KernelSU-Next/stable/kernel/setup.sh" | bash -s syscall
-  # fi
 else
-  echo "==> The setup step is skipped. Ensure that the 'clang/', 'gcc64/', 'gcc32/', and 'KernelSU-Next/' folders are complete from the previous build."
+  echo "==> The setup step is skipped. Ensure that the 'clang/', 'gcc64/', and 'gcc32/' folders are complete from the previous build."
 fi
 
 # ===== ⚡ Speed Optimizations =====
