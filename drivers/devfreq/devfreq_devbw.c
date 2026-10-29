@@ -18,6 +18,7 @@
 #include <linux/interrupt.h>
 #include <linux/devfreq.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/of.h>
 #include <linux/of_fdt.h>
 #include <trace/events/power.h>
@@ -176,6 +177,14 @@ int devfreq_add_devbw(struct device *dev)
 	d->df = devfreq_add_device(dev, p, gov_name, NULL);
 	if (IS_ERR(d->df)) {
 		msm_bus_scale_unregister_client(d->bus_client);
+		/*
+		 * bw_hwmon/compute/mem_latency are only registered once their
+		 * monitor probes; retry instead of losing the device for good.
+		 */
+		if (strcmp(gov_name, "performance")) {
+			dev_pm_opp_of_remove_table(dev);
+			return -EPROBE_DEFER;
+		}
 		return PTR_ERR(d->df);
 	}
 
