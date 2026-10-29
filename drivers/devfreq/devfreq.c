@@ -224,6 +224,22 @@ static struct devfreq_governor *find_devfreq_governor(const char *name)
 }
 
 /**
+ * devfreq_governor_registered() - check whether a governor is available
+ * @name:	name of the governor
+ */
+bool devfreq_governor_registered(const char *name)
+{
+	struct devfreq_governor *governor;
+
+	mutex_lock(&devfreq_list_lock);
+	governor = find_devfreq_governor(name);
+	mutex_unlock(&devfreq_list_lock);
+
+	return !IS_ERR(governor);
+}
+EXPORT_SYMBOL(devfreq_governor_registered);
+
+/**
  * try_then_request_governor() - Try to find the governor and request the
  *                               module if is not found.
  * @name:	name of the governor
