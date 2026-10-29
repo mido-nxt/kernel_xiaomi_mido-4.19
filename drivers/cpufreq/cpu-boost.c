@@ -49,7 +49,10 @@ static struct work_struct input_boost_work;
 
 static bool input_boost_enabled;
 
-static unsigned int input_boost_ms = 40;
+/* Default touch boost, so launches ramp up even if userspace sets nothing */
+#define DEFAULT_INPUT_BOOST_FREQ	1401600
+
+static unsigned int input_boost_ms = 100;
 show_one(input_boost_ms);
 store_one(input_boost_ms);
 cpu_boost_attr_rw(input_boost_ms);
@@ -343,7 +346,9 @@ static int cpu_boost_init(void)
 	for_each_possible_cpu(cpu) {
 		s = &per_cpu(sync_info, cpu);
 		s->cpu = cpu;
+		s->input_boost_freq = DEFAULT_INPUT_BOOST_FREQ;
 	}
+	input_boost_enabled = true;
 	cpufreq_register_notifier(&boost_adjust_nb, CPUFREQ_POLICY_NOTIFIER);
 
 	cpu_boost_kobj = kobject_create_and_add("cpu_boost",
