@@ -18,12 +18,12 @@
 #include <linux/interrupt.h>
 #include <linux/devfreq.h>
 #include <linux/slab.h>
-#include <linux/string.h>
 #include <linux/of.h>
 #include <linux/of_fdt.h>
 #include <trace/events/power.h>
 #include <linux/msm-bus.h>
 #include <linux/msm-bus-board.h>
+#include "governor.h"
 
 /* Has to be ULL to prevent overflow where this macro is used. */
 #define MBYTE (1ULL << 20)
@@ -107,6 +107,16 @@ int devfreq_add_devbw(struct device *dev)
 	struct opp_table *opp_table;
 	u32 version;
 
+	if (of_property_read_string(dev->of_node, "governor", &gov_name))
+		gov_name = "performance";
+
+	/*
+	 * bw_hwmon/compute/mem_latency are only registered once their
+	 * monitor probes; defer before any setup instead of failing for good.
+	 */
+	if (!devfreq_governor_registered(gov_name))
+		return -EPROBE_DEFER;
+
 	d = devm_kzalloc(dev, sizeof(*d), GFP_KERNEL);
 	if (!d)
 		return -ENOMEM;
@@ -171,20 +181,9 @@ int devfreq_add_devbw(struct device *dev)
 		return -ENODEV;
 	}
 
-	if (of_property_read_string(dev->of_node, "governor", &gov_name))
-		gov_name = "performance";
-
 	d->df = devfreq_add_device(dev, p, gov_name, NULL);
 	if (IS_ERR(d->df)) {
 		msm_bus_scale_unregister_client(d->bus_client);
-		/*
-		 * bw_hwmon/compute/mem_latency are only registered once their
-		 * monitor probes; retry instead of losing the device for good.
-		 */
-		if (strcmp(gov_name, "performance")) {
-			dev_pm_opp_of_remove_table(dev);
-			return -EPROBE_DEFER;
-		}
 		return PTR_ERR(d->df);
 	}
 
