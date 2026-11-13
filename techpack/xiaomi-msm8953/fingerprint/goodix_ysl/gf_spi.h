@@ -119,6 +119,8 @@ struct gf_dev {
 #elif defined(USE_PLATFORM_BUS)
 	struct platform_device *spi;
 #endif
+	struct clk *core_clk;
+	struct clk *iface_clk;
 
 	struct input_dev *input;
 	/* buffer is NULL unless this device is open (users > 0) */
@@ -128,6 +130,7 @@ struct gf_dev {
 	signed pwr_gpio;
 	int irq;
 	int irq_enabled;
+	int clk_enabled;
 #ifdef GF_FASYNC
 	struct fasync_struct *async;
 #endif
