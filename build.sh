@@ -126,9 +126,9 @@ fi
 # berdasarkan .config yang sudah tersimpan di dalamnya.
 if [ "$SKIP_SETUP" -eq 0 ]; then
   if [ "$BUILD_KSU" -eq 1 ]; then
-    make O=out ARCH=arm64 CC="$CC_CMD" LLVM=1 LLVM_IAS=1 vendor/msm8953-perf_defconfig vendor/akari.config vendor/ksu.config
+    make O=out ARCH=arm64 CC="$CC_CMD" LLVM=1 LLVM_IAS=1 vendor/msm8953-perf_defconfig vendor/mi8953.config vendor/ksu.config
   else
-    make O=out ARCH=arm64 CC="$CC_CMD" LLVM=1 LLVM_IAS=1 vendor/msm8953-perf_defconfig vendor/akari.config
+    make O=out ARCH=arm64 CC="$CC_CMD" LLVM=1 LLVM_IAS=1 vendor/msm8953-perf_defconfig vendor/mi8953.config
   fi
 else
   # Incremental build: toggle KernelSU based on user choice
